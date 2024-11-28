@@ -1,0 +1,7 @@
+Flask==2.3.3
+pymongo==4.4.0
+google-cloud-storage==2.18.2
+qrcode==7.3.1
+pillow==9.5.0
+python-dotenv==1.0.1
+twilio==9.3.7

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Código QR</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Generador de Código QR</h1>
+
+        <!-- Estado de la base de datos (centrado) -->
+        <div class="db-status {{ db_status_class }}">
+            Estado de la Base de Datos: {{ db_status }}
+        </div>
+
+        <form action="/generar" method="POST" class="qr-form">
+            <input type="text" name="dato" placeholder="Introduce un dato o URL" required>
+            <button type="submit" class="generate-btn">Generar QR</button>
+        </form>
+
+        <div class="historial">
+            <h2>Historial de Códigos QR Generados</h2>
+
+            {% if historial %}
+                {% for item in historial %}
+                    <div class="codigo-qr">
+                        <!-- Mostrar el código QR -->
+                        <img src="{{ item.filename }}" alt="Código QR">
+                        <p>{{ item.dato }}</p>
+                        <!-- Mostrar la URL del archivo sin mostrar el nombre de la imagen -->
+                        <p><strong>URL del archivo:</strong> 
+                            <a href="{{ item.filename }}" target="_blank" class="url-link">{{ item.filename }}</a>
+                        </p>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p>No hay códigos QR generados aún.</p>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>
