@@ -3,59 +3,24 @@ import uuid
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for
 from pymongo import MongoClient
-from google.cloud import storage, secretmanager
+from google.cloud import storage
 import qrcode
 import io
-import json
 import logging
-import os
-import logging
-import json
-from google.cloud import secretmanager
 
-def access_secret_version(secret_id, version_id="latest"):
-    """Accede al secreto desde Google Secret Manager."""
-    try:
-        # Cliente de Secret Manager
-        client = secretmanager.SecretManagerServiceClient()
-        
-        # Obtener el ID del proyecto desde la variable de entorno o definir uno predeterminado
-        project_id = os.getenv('PROJECT_ID', 'calm-segment-443101-a8')  # Define esto en tu entorno
-        if not project_id:
-            raise ValueError("PROJECT_ID no está definido en las variables de entorno.")
-        
-        # Ruta del secreto
-        name = f"projects/{project_id}/secrets/{secret_id}/versions/{version_id}"
-        
-        # Acceso al secreto
-        response = client.access_secret_version(request={"name": name})
-        secret_data = response.payload.data.decode('UTF-8')
-        
-        # Retorna el secreto como un diccionario
-        logging.info(f"Secreto {secret_id} recuperado exitosamente.")
-        return json.loads(secret_data)
-    
-    except Exception as e:
-        logging.error(f"Error al acceder al secreto {secret_id}: {e}")
-        return {}
+# Configuración de Flask
+app = Flask(__name__)
 
-# Acceder a secretos desde Secret Manager
-secret_id = "qr-generator-secrets"  # Nombre del secreto creado en GCP
-secrets_data = access_secret_version(secret_id)
-
-# Variables de configuración
-db_user = secrets_data.get("db_user", "")
-db_pass = secrets_data.get("db_pass", "")
-bucket_name = secrets_data.get("bucket_name", "")
-mongo_uri = secrets_data.get("mongo_uri", "")
-project_id = secrets_data.get("project_id", "")
+# Leer los secretos desde las variables de entorno
+db_user = os.getenv('DB_USER')  # Configurado en Cloud Run como secreto
+db_pass = os.getenv('DB_PASS')  # Configurado en Cloud Run como secreto
+bucket_name = os.getenv('BUCKET_NAME')  # Configurado en Cloud Run como secreto
+mongo_uri = os.getenv('MONGO_URI')  # Configurado en Cloud Run como secreto
+project_id = os.getenv('PROJECT_ID', 'calm-segment-443101-a8')
 
 # Verificar que todos los secretos se cargaron correctamente
 if not all([db_user, db_pass, bucket_name, mongo_uri, project_id]):
     logging.error("Faltan algunos secretos. Verifica la configuración en Secret Manager.")
-
-# Configuración de Flask
-app = Flask(__name__)
 
 # Conexión a MongoDB
 client = MongoClient(mongo_uri)
