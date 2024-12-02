@@ -1,14 +1,14 @@
 import os
-import uuid
 import json
 import logging
-from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
-from google.cloud import secretmanager, storage
+from google.cloud import storage
 import qrcode
 import io
+from datetime import datetime
+import uuid
 
 # Configuración de logging
 logging.basicConfig(level=logging.INFO)
@@ -16,57 +16,36 @@ logging.basicConfig(level=logging.INFO)
 # Inicializar la aplicación Flask
 app = Flask(__name__)
 
-# Función para acceder a Secret Manager
-def access_secret_version(secret_id, version_id="latest"):
-    try:
-        client = secretmanager.SecretManagerServiceClient()
-        project_id = os.getenv("GCP_PROJECT_ID")
-
-        if not project_id:
-            raise ValueError("El ID del proyecto no está configurado en las variables de entorno.")
-
-        secret_path = f"projects/{project_id}/secrets/{secret_id}/versions/{version_id}"
-        response = client.access_secret_version(name=secret_path)
-        return json.loads(response.payload.data.decode("UTF-8"))
-    except Exception as e:
-        logging.error(f"Error al acceder a Secret Manager: {e}")
-        raise
-
-# Cargar credenciales desde Secret Manager
+# Cargar configuraciones desde la variable de entorno `env`
 try:
-    secrets_data = access_secret_version("qr-generator-secret")
-    db_user = secrets_data['db_user']
-    db_pass = secrets_data['db_pass']
-    twilio_config = {
-        'sid': secrets_data['Twilio_sid'],
-        'token': secrets_data['Twilio_token'],
-        'service_sid': secrets_data['Twilio_service_sid'],
-        'destino': secrets_data['Twilio_destino'],
-    }
-    gcs_config = {
-        'bucket_name': secrets_data['GCS_BUCKET_NAME'],
-        'project_id': os.getenv("GCP_PROJECT_ID"),
-    }
-except KeyError as e:
-    logging.error(f"Falta la clave esperada en el secreto: {e}")
+    config = json.loads(os.getenv('env', '{}'))
+    db_user = config.get("db_user")
+    db_pass = config.get("db_pass")
+    bucket_name = config.get("bucket_name")
+    mongo_uri = config.get("mongo_uri")
+    project_id = config.get("project_id")
+
+    if not all([db_user, db_pass, bucket_name, mongo_uri, project_id]):
+        raise ValueError("Faltan claves en la configuración.")
+except json.JSONDecodeError as e:
+    logging.error(f"Error al cargar la configuración desde `env`: {e}")
     raise
 except Exception as e:
-    logging.error(f"No se pudieron cargar las credenciales: {e}")
+    logging.error(f"Error en la configuración inicial: {e}")
     raise
 
 # Configuración de MongoDB
-mongo_uri = f"mongodb+srv://{db_user}:{db_pass}@basenueva.hxpdn.mongodb.net/?retryWrites=true&w=majority"
 client = MongoClient(mongo_uri)
 db = client['BaseNueva']
 collection_qr = db['qr_codes']
 
-# Cliente GCS
-storage_client = storage.Client(project=gcs_config['project_id'])
+# Cliente de GCS
+storage_client = storage.Client(project=project_id)
 
 # Función para subir imágenes a GCS
 def upload_qr_to_gcs(qr_image, blob_name):
     try:
-        bucket = storage_client.bucket(gcs_config['bucket_name'])
+        bucket = storage_client.bucket(bucket_name)
 
         # Convertir la imagen QR a un archivo en memoria
         image_bytes = io.BytesIO()
