@@ -17,43 +17,31 @@ logging.basicConfig(level=logging.INFO)
 # Inicializar la aplicación Flask
 app = Flask(__name__)
 
-# Cargar configuraciones desde la variable de entorno en `env`
-client = secretmanager.SecretManagerServiceClient()
-secret_name = "projects/970772571927/secrets/qr-generator-secrets/versions/latest"
-secret = client.access_secret_version(request={"name": secret_name}).payload.data.decode("UTF-8")
-env = json.loads(secret)
+# Función para cargar el secreto desde Google Secret Manager
+def load_secret(secret_name):
+    client = secretmanager.SecretManagerServiceClient()
+    secret = client.access_secret_version(request={"name": secret_name}).payload.data.decode("UTF-8")
+    return json.loads(secret)
 
-db_user=env.get("db_user")
-db_pass=env.get("db_pass")
-bucket_name=env.get("bucket_name")
-mongo_uri=env.get("mongo_uri")
-project_id=env.get("project_id")
+# Cargar configuraciones desde el secreto
+env = load_secret("projects/970772571927/secrets/qr-generator-secrets/versions/latest")
+db_user = env.get("db_user")
+db_pass = env.get("db_pass")
+bucket_name = env.get("bucket_name")
+mongo_uri = env.get("mongo_uri")
+project_id = env.get("project_id")
+
+# Validación de configuraciones
+if not all([db_user, db_pass, bucket_name, mongo_uri, project_id]):
+    raise ValueError("Faltan claves en la configuración del secreto.")
 
 # Configuración de MongoDB
-client = MongoClient(mongo_uri)
-db = client['BaseNueva']
+mongo_client = MongoClient(mongo_uri)
+db = mongo_client['BaseNueva']
 collection_qr = db['qr_codes']
 
 # Cliente de GCS
 storage_client = storage.Client(project=project_id)
-
-# Función para subir imágenes a GCS
-def upload_qr_to_gcs(qr_image, blob_name):
-    try:
-        bucket = storage_client.bucket(bucket_name)
-
-        # Convertir la imagen QR a un archivo en memoria
-        image_bytes = io.BytesIO()
-        qr_image.save(image_bytes, format="PNG")
-        image_bytes.seek(0)
-
-        # Subir la imagen a GCS
-        blob = bucket.blob(blob_name)
-        blob.upload_from_file(image_bytes, content_type="image/png")
-        return blob.public_url
-    except Exception as e:
-        logging.error(f"Error al subir QR a GCS: {e}")
-        return None
 
 # Función para generar códigos QR
 def generar_qr(dato):
@@ -67,15 +55,29 @@ def generar_qr(dato):
     qr.make(fit=True)
     return qr.make_image(fill="black", back_color="white")
 
+# Función para subir imágenes a GCS
+def upload_qr_to_gcs(qr_image, blob_name):
+    try:
+        bucket = storage_client.bucket(bucket_name)
+        image_bytes = io.BytesIO()
+        qr_image.save(image_bytes, format="PNG")
+        image_bytes.seek(0)
+        blob = bucket.blob(blob_name)
+        blob.upload_from_file(image_bytes, content_type="image/png")
+        return blob.public_url
+    except Exception as e:
+        logging.error(f"Error al subir QR a GCS: {e}")
+        return None
+
 @app.route('/')
 def index():
     try:
-        client.admin.command('ping')  # Verificar conexión con la base de datos
+        mongo_client.admin.command('ping')  # Verificar conexión con la base de datos
         historial = list(collection_qr.find({}, {"_id": 0}).sort("created_at", -1))
         db_status = "Conexión exitosa"
         db_status_class = "success"
     except ServerSelectionTimeoutError:
-        db_status = "Conexión fallida"
+        db_status = "No se puede conectar a MongoDB"
         db_status_class = "error"
         historial = []
     except Exception as e:
