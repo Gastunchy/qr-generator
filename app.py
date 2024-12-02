@@ -9,6 +9,7 @@ import qrcode
 import io
 from datetime import datetime
 import uuid
+from google.cloud import secretmanager
 
 # Configuración de logging
 logging.basicConfig(level=logging.INFO)
@@ -16,23 +17,17 @@ logging.basicConfig(level=logging.INFO)
 # Inicializar la aplicación Flask
 app = Flask(__name__)
 
-# Cargar configuraciones desde la variable de entorno `env`
-try:
-    config = json.loads(os.getenv('env', '{}'))
-    db_user = config.get("db_user")
-    db_pass = config.get("db_pass")
-    bucket_name = config.get("bucket_name")
-    mongo_uri = config.get("mongo_uri")
-    project_id = config.get("project_id")
+# Cargar configuraciones desde la variable de entorno en `env`
+client = secretmanager.SecretManagerServiceClient()
+secret_name = "projects/970772571927/secrets/qr-generator-secrets/versions/latest"
+secret = client.access_secret_version(request={"name": secret_name}).payload.data.decode("UTF-8")
+env = json.loads(secret)
 
-    if not all([db_user, db_pass, bucket_name, mongo_uri, project_id]):
-        raise ValueError("Faltan claves en la configuración.")
-except json.JSONDecodeError as e:
-    logging.error(f"Error al cargar la configuración desde `env`: {e}")
-    raise
-except Exception as e:
-    logging.error(f"Error en la configuración inicial: {e}")
-    raise
+db_user=env.get("db_user")
+db_pass=env.get("db_pass")
+bucket_name=env.get("bucket_name")
+mongo_uri=env.get("mongo_uri")
+project_id=env.get("project_id")
 
 # Configuración de MongoDB
 client = MongoClient(mongo_uri)
