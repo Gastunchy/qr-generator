@@ -27,12 +27,9 @@
                 {% for item in historial %}
                     <div class="codigo-qr">
                         <!-- Mostrar el código QR -->
-                        <img src="{{ item.filename }}" alt="Código QR">
+                        <img src="{{ url_for('get_qr', blob_name=item.filename) }}" alt="Código QR">
                         <p>{{ item.dato }}</p>
-                        <!-- Mostrar la URL del archivo sin mostrar el nombre de la imagen -->
-                        <p><strong>URL del archivo:</strong> 
-                            <a href="{{ item.filename }}" target="_blank" class="url-link">{{ item.filename }}</a>
-                        </p>
+                        <!-- Ya no es necesario mostrar la URL pública -->
                     </div>
                 {% endfor %}
             {% else %}
