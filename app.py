@@ -55,7 +55,7 @@ def generar_qr(dato):
     qr.make(fit=True)
     return qr.make_image(fill="black", back_color="white")
 
-# Función para subir imágenes a GCS
+# Función para subir imágenes a GCS sin generar una URL pública
 def upload_qr_to_gcs(qr_image, blob_name):
     try:
         bucket = storage_client.bucket(bucket_name)
@@ -64,7 +64,7 @@ def upload_qr_to_gcs(qr_image, blob_name):
         image_bytes.seek(0)
         blob = bucket.blob(blob_name)
         blob.upload_from_file(image_bytes, content_type="image/png")
-        return blob.public_url
+        return blob.name  # Guardamos solo el nombre del archivo en lugar de la URL pública
     except Exception as e:
         logging.error(f"Error al subir QR a GCS: {e}")
         return None
@@ -100,12 +100,12 @@ def generar_codigo_qr():
 
     try:
         qr_image = generar_qr(dato)
-        public_url = upload_qr_to_gcs(qr_image, blob_name)
+        blob_name_in_gcs = upload_qr_to_gcs(qr_image, blob_name)
 
-        if public_url:
+        if blob_name_in_gcs:
             collection_qr.insert_one({
                 'dato': dato,
-                'filename': public_url,
+                'filename': blob_name_in_gcs,  # Guardamos solo el nombre del archivo (ID interno)
                 'created_at': datetime.now()
             })
 
