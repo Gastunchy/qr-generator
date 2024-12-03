@@ -1,7 +1,7 @@
 import os
 import json
 import logging
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, send_file
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 from google.cloud import storage
@@ -69,6 +69,24 @@ def upload_qr_to_gcs(qr_image, blob_name):
         logging.error(f"Error al subir QR a GCS: {e}")
         return None
 
+# Endpoint para servir la imagen desde GCS
+@app.route('/get_qr/<blob_name>')
+def get_qr(blob_name):
+    try:
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+        
+        # Descargar el archivo en un buffer y devolverlo como una respuesta
+        image_bytes = io.BytesIO()
+        blob.download_to_file(image_bytes)
+        image_bytes.seek(0)
+        
+        return send_file(image_bytes, mimetype='image/png')
+    except Exception as e:
+        logging.error(f"Error al obtener el QR desde GCS: {e}")
+        return "Error al obtener la imagen.", 500
+
+# Página principal
 @app.route('/')
 def index():
     try:
@@ -88,6 +106,7 @@ def index():
 
     return render_template('index.html', historial=historial, db_status=db_status, db_status_class=db_status_class)
 
+# Generación de código QR
 @app.route('/generar', methods=['POST'])
 def generar_codigo_qr():
     dato = request.form.get('dato', '').strip()
