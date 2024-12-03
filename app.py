@@ -27,7 +27,7 @@ def load_secret(secret_name):
 env = load_secret("projects/970772571927/secrets/qr-generator-secrets/versions/latest")
 db_user = env.get("db_user")
 db_pass = env.get("db_pass")
-bucket_name = env.get("bucket_name")
+bucket_name = env.get("bucket_name")  # Nombre del bucket
 mongo_uri = env.get("mongo_uri")
 project_id = env.get("project_id")
 
@@ -62,9 +62,9 @@ def upload_qr_to_gcs(qr_image, blob_name):
         image_bytes = io.BytesIO()
         qr_image.save(image_bytes, format="PNG")
         image_bytes.seek(0)
-        blob = bucket.blob(blob_name)
+        blob = bucket.blob(f"qr_codes/{blob_name}")
         blob.upload_from_file(image_bytes, content_type="image/png")
-        return blob.name  # Guardamos solo el nombre del archivo en lugar de la URL pública
+        return blob.name
     except Exception as e:
         logging.error(f"Error al subir QR a GCS: {e}")
         return None
@@ -73,14 +73,17 @@ def upload_qr_to_gcs(qr_image, blob_name):
 @app.route('/get_qr/<blob_name>')
 def get_qr(blob_name):
     try:
+        logging.info(f"Blob name recibido: {blob_name}")  # Log para depuración
         bucket = storage_client.bucket(bucket_name)
         blob = bucket.blob(blob_name)
-        
-        # Descargar el archivo en un buffer y devolverlo como una respuesta
+        if not blob.exists():
+            logging.error(f"El archivo {blob_name} no existe en el bucket.")
+            return "Imagen no encontrada.", 404
+
         image_bytes = io.BytesIO()
         blob.download_to_file(image_bytes)
         image_bytes.seek(0)
-        
+
         return send_file(image_bytes, mimetype='image/png')
     except Exception as e:
         logging.error(f"Error al obtener el QR desde GCS: {e}")
@@ -90,7 +93,7 @@ def get_qr(blob_name):
 @app.route('/')
 def index():
     try:
-        mongo_client.admin.command('ping')  # Verificar conexión con la base de datos
+        mongo_client.admin.command('ping')
         historial = list(collection_qr.find({}, {"_id": 0}).sort("created_at", -1))
         db_status = "Conexión exitosa"
         db_status_class = "success"
@@ -124,7 +127,7 @@ def generar_codigo_qr():
         if blob_name_in_gcs:
             collection_qr.insert_one({
                 'dato': dato,
-                'filename': blob_name_in_gcs,  # Guardamos solo el nombre del archivo (ID interno)
+                'filename': blob_name,  # blob_name ya incluye "qr_codes/"
                 'created_at': datetime.now()
             })
 
