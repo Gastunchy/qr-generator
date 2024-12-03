@@ -62,7 +62,7 @@ def upload_qr_to_gcs(qr_image, blob_name):
         image_bytes = io.BytesIO()
         qr_image.save(image_bytes, format="PNG")
         image_bytes.seek(0)
-        blob = bucket.blob(f"qr_codes/{blob_name}")
+        blob = bucket.blob(f"{blob_name}")
         blob.upload_from_file(image_bytes, content_type="image/png")
         return blob.name
     except Exception as e:
